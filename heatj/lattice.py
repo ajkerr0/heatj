@@ -17,8 +17,7 @@ class Lattice(object):
         self.crossings = np.asarray(crossings)
         self.dim = self.k.shape[0]//self.mass.shape[0]
         self.n = self.mass.shape[0]
-        self.val, self.vec = self._calculate_evec()
-        self.coeffs = self._calculate_coeffs()
+        self.set_greensfunc()
         
     @property
     def _m_matrix(self):
@@ -31,6 +30,10 @@ class Lattice(object):
         drivers = np.zeros(self.mass.shape[0])
         drivers[np.ravel(self.drivers)] = self.gamma
         return np.diag(np.repeat(drivers, self.dim))
+    
+    def set_greensfunc(self):
+        self.val, self.vec = self._calculate_evec()
+        self.coeffs = self._calculate_coeffs()
     
     def _calculate_evec(self):
         """Return the eigenvalues and eigenvectors of the interacting 
@@ -226,7 +229,7 @@ class Lattice(object):
         for i,j in self.crossings:
             kappa += power(i,j)
             
-        return 2.*self.gamma*kappa
+        return 2.*self.gamma*np.abs(kappa.real)
     
 
     

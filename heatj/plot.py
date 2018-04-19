@@ -3,6 +3,8 @@
 @author: Alex Kerr
 """
 
+import copy
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -59,16 +61,18 @@ def mode_evolution(lattice, mindex, sindices, g):
         
         # find the eigenmode that corresponds to the previous one
         a = vec[:lattice.n].imag.T
+        with np.errstate(divide="ignore", invalid="ignore"):
+            a = np.true_divide(a, np.linalg.norm(a, axis=1)[:,None])
+        a[~np.isfinite(a)] = 0.
+        
+        print(umode)
         print(a)
-        print(np.linalg.norm(a, axis=1))
-        a = a/np.linalg.norm(a, axis=1)[:,None]
-#        print(a/np.linalg.norm(a, axis=1)[:,None])
-#        print(umode)
-#        print(a/np.linalg.norm(a, axis=1)[:,None]-umode)
-#        print(np.linalg.norm(a/np.linalg.norm(a, axis=1)[:,None]-umode, axis=1))
+        print(np.linalg.norm(a-umode, axis=1))
         mindex = np.argmin(np.linalg.norm(a-umode, 
                                           axis=1))
         pos[i] = a[mindex][s]
+        
+        umode = a[mindex]
         
     # plot
     x = np.arange(s.shape[0])
@@ -77,12 +81,46 @@ def mode_evolution(lattice, mindex, sindices, g):
         plt.plot(pos[:,site]+site, g, '-x')
         plt.axvline(x=site, ymin=np.min(g), ymax=np.max(g), linestyle='dashed')
         
+    # try plotting hlines at the crossover points
+    # works when lattice is a Simple1D object, does nothing otherwise
+    try:
+        plt.axhline(y=2.*lattice.m*lattice.sigma2/lattice.nr, 
+                    xmin=np.min(x),
+                    xmax=np.max(x),
+                    ls='dotted')
+        plt.axhline(y=lattice.uk*(1. - (np.sqrt(lattice.m*lattice.ud)/2./lattice.uk)*lattice.bandwidth)/2./lattice.sigma2,
+                    xmin=np.min(x),
+                    xmax=np.max(x),
+                    ls='dotted')
+    except AttributeError:
+        pass
+        
+    plt.show()
+    
+def j_evolution(lattice, g):
+    """Plot conductance as a function of the supplied damping"""
+    
+    g = np.array(g)
+    sigma = np.zeros(g.shape[0])
+    
+    lat = copy.deepcopy(lattice)
+    
+    for i,gamma in enumerate(g):
+        
+        lat.gamma = gamma
+        lat.set_greensfunc()
+        sigma[i] = lat.j()
+        
+    plt.loglog(g, sigma, lw=4)
+    
+    # try putting lines at theoretical values
+    try:
+        plt.axhline(y=lat.sigma2, ls='dotted')
+        plt.axvline(x=lat.gamma12, ls='dashed')
+        plt.axvline(x=lat.gamma23, ls='dashed')
+    except AttributeError:
+        pass
+    
     plt.show()
         
-        
-    
-def norm(vec):
-    return vec/np.linalg.norm(vec)
-    
-    
     
