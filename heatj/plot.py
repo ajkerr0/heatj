@@ -45,60 +45,90 @@ def mode_evolution(lattice, mindex, sindices, g):
     s = np.array(sindices)
     g = np.array(g)
     
-    
-    # get the undamped eigenmode 
+    # get the undamped eigenmodes
     uval, uvec = np.linalg.eig(lattice.k)
-    umode = uvec[:,mindex]
+#    print(uval)
+#    print(np.sqrt(uval))
+#    print(uvec)
+    uval = 0+np.sqrt(abs(uval[mindex]))*1j
+#    print(uval)
     
     # evolve the eigenmode
-    pos = np.zeros((g.shape[0], s.shape[0]))
+    pos_r = np.zeros((g.shape[0], s.shape[0]))
+    pos_i = np.zeros((g.shape[0], s.shape[0]))
     
     for i,gamma in enumerate(g):
         
-        # determine the eigenmode(s)
+        # determine the damped eigenmodes
         lattice.gamma = gamma
         val, vec = lattice._calculate_evec()
+        mindex = np.argmin(np.abs(val-uval))
+#        print(val[mindex])
+#        print(val)
+        vec = vec[:lattice.n,mindex]/np.linalg.norm(vec[:lattice.n,mindex])
+#        print(vec.real)
+#        print(vec.imag)
         
-        # find the eigenmode that corresponds to the previous one
-        a = vec[:lattice.n].imag.T
-        with np.errstate(divide="ignore", invalid="ignore"):
-            a = np.true_divide(a, np.linalg.norm(a, axis=1)[:,None])
-        a[~np.isfinite(a)] = 0.
+        if vec[0].imag < 0.:
+            vec *= -1.
         
-        print(umode)
-        print(a)
-        print(np.linalg.norm(a-umode, axis=1))
-        mindex = np.argmin(np.linalg.norm(a-umode, 
-                                          axis=1))
-        pos[i] = a[mindex][s]
+        pos_r[i] = vec.real[s]
+        pos_i[i] = vec.imag[s]
         
-        umode = a[mindex]
+        uval = val[mindex]
         
     # plot
     x = np.arange(s.shape[0])
     
+    fig1 = plt.figure()
+    fig2 = plt.figure()
+    ax1 = fig1.add_subplot(1,1,1)
+    ax2 = fig2.add_subplot(1,1,1)
+    
     for site in x:
-        plt.plot(pos[:,site]+site, g, '-x')
-        plt.axvline(x=site, ymin=np.min(g), ymax=np.max(g), linestyle='dashed')
+        ax1.plot(pos_r[:,site]+site, g, '-x')
+        ax1.axvline(x=site, ymin=np.min(g), ymax=np.max(g), linestyle='dashed')
+        ax2.plot(pos_i[:,site]+2*site, g, '-x')
+        ax2.axvline(x=2*site, ymin=np.min(g), ymax=np.max(g), linestyle='dashed')
+        ax2.arrow(2*site, np.min(g), pos_i[0,site], 0,
+                  lw=2,
+                  zorder=2,
+                  facecolor='k',
+                  length_includes_head=True,
+                  head_width=.1,
+                  capstyle='butt')
         
     # try plotting hlines at the crossover points
     # works when lattice is a Simple1D object, does nothing otherwise
     try:
-        plt.axhline(y=2.*lattice.m*lattice.sigma2/lattice.nr, 
+        ax1.axhline(y=lattice.gamma12, 
                     xmin=np.min(x),
                     xmax=np.max(x),
-                    ls='dotted')
-        plt.axhline(y=lattice.uk*(1. - (np.sqrt(lattice.m*lattice.ud)/2./lattice.uk)*lattice.bandwidth)/2./lattice.sigma2,
+                    ls='dotted',)
+        ax1.axhline(y=lattice.gamma23,
                     xmin=np.min(x),
                     xmax=np.max(x),
-                    ls='dotted')
+                    ls='dotted',)
+        
+        ax2.axhline(y=lattice.gamma12, 
+                    xmin=np.min(x),
+                    xmax=np.max(x),
+                    ls='dotted',)
+        ax2.axhline(y=lattice.gamma23,
+                    xmin=np.min(x),
+                    xmax=np.max(x),
+                    ls='dotted',)
     except AttributeError:
         pass
         
+    ax1.set_xlabel('Re(Mode)')
+    ax2.set_xlabel('Im(Mode)')
+    ax1.set_ylabel(r'$\gamma \; \; \sqrt{mK}$')
+    ax2.set_ylabel(r'$\gamma \; \; \sqrt{mK}$')
     plt.show()
     
-def j_evolution(lattice, g):
-    """Plot conductance as a function of the supplied damping"""
+def _evolve_j(lattice, g):
+    """Evaluate the conductance as a function of the supplied damping."""
     
     g = np.array(g)
     sigma = np.zeros(g.shape[0])
@@ -111,13 +141,21 @@ def j_evolution(lattice, g):
         lat.set_greensfunc()
         sigma[i] = lat.j()
         
+    return g, sigma
+    
+    
+def j_evolution(lattice, g):
+    """Plot conductance as a function of the supplied damping"""
+    
+    g, sigma = _evolve_j(lattice, g)
+        
     plt.loglog(g, sigma, lw=4)
     
     # try putting lines at theoretical values
     try:
-        plt.axhline(y=lat.sigma2, ls='dotted')
-        plt.axvline(x=lat.gamma12, ls='dashed')
-        plt.axvline(x=lat.gamma23, ls='dashed')
+        plt.axhline(y=lattice.sigma2, ls='dotted')
+        plt.axvline(x=lattice.gamma12, ls='dashed')
+        plt.axvline(x=lattice.gamma23, ls='dashed')
     except AttributeError:
         pass
     
