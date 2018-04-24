@@ -4,6 +4,7 @@
 """
 
 import numpy as np
+import scipy.linalg
 
 from . import Lattice
 
@@ -38,6 +39,35 @@ class Simple1D(Lattice):
     @property
     def gamma23(self):
         return self.uk*(1. - (np.sqrt(self.m*self.ud)/2./self.uk)*self.bandwidth)/2./self.sigma2
+    
+    def j_alt(self):
+        """Return the heat current as defined by Velizhinan et al. which is a
+        seemingly different function than Mullen's GF method."""
+        
+        a = np.zeros((2*self.n*self.dim, 2*self.n*self.dim))
+        a[:self.n*self.dim, self.n*self.dim:] = -self._m_matrix
+        a[self.n*self.dim:, :self.n*self.dim] = self.k
+        a[self.n*self.dim:, self.n*self.dim:] = np.dot(self._g_matrix, 
+                                                       self._m_matrix)
+        
+        w, vl, vr = scipy.linalg.eig(a, left=True)
+        
+        val_sigma = np.tile(w, (w.shape[0],1))
+        val_tau = np.conjugate(np.transpose(val_sigma))
+        
+        with np.errstate(divide="ignore", invalid="ignore"):
+            valterm = np.true_divide(1.,val_sigma+val_tau)
+        valterm[~np.isfinite(valterm)] = 0.
+        
+        drivers = np.arange(self.nr)
+        
+        return 2*self.uk/self.m*np.abs(np.einsum('l,k,mk,ml,kl->',
+                                       np.conj(vr[self.n+self.nr+1,:]),
+                                       vr[self.nr,:],
+                                       np.conj(vl[self.n+drivers,:]),
+                                       vl[self.n+drivers,:],
+                                       valterm))*self.gamma
+        
         
 def get_1dneighbors(n):
     return [[x, x+1] for x in np.arange(n-1)]
