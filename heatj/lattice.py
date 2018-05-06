@@ -31,6 +31,12 @@ class Lattice(object):
         drivers[np.ravel(self.drivers)] = self.gamma
         return np.diag(np.repeat(drivers, self.dim))
     
+    @property
+    def ppation_ratio(self):
+        """Return the participation ratio of the eigenmodes"""
+        return np.sum(np.abs(self.vec[:self.dim*self.n]**2), axis=0)**2/ \
+               np.sum(np.abs(self.vec[:self.dim*self.n]**4), axis=0)
+    
     def set_greensfunc(self):
         self.val, self.vec = self._calculate_evec()
         self.coeffs = self._calculate_coeffs()
