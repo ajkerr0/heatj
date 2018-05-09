@@ -34,8 +34,10 @@ class Lattice(object):
     @property
     def ppation_ratio(self):
         """Return the participation ratio of the eigenmodes"""
-        return np.sum(np.abs(self.vec[:self.dim*self.n]**2), axis=0)**2/ \
-               np.sum(np.abs(self.vec[:self.dim*self.n]**4), axis=0)
+        a = self.vec[:self.dim*self.n]
+        a = a/np.linalg.norm(a, axis=0)
+        return np.sum(np.abs(a)**2, axis=0)**2/ \
+               np.sum(np.abs(a)**4, axis=0)
     
     def set_greensfunc(self):
         self.val, self.vec = self._calculate_evec()
