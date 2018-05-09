@@ -67,6 +67,39 @@ class Simple1D(Lattice):
                                        np.conj(vl[self.n+drivers,:]),
                                        vl[self.n+drivers,:],
                                        valterm))*self.gamma
+                                        
+    def j_alt2(self):
+        """Return the heat current as defined Velizhinan et al. without using
+        numpy's einsum function."""
+        
+        a = np.zeros((2*self.n*self.dim, 2*self.n*self.dim))
+        a[:self.n*self.dim, self.n*self.dim:] = -self._m_matrix
+        a[self.n*self.dim:, :self.n*self.dim] = self.k
+        a[self.n*self.dim:, self.n*self.dim:] = np.dot(self._g_matrix, 
+                                                       self._m_matrix)
+        
+        w, vl, vr = scipy.linalg.eig(a, left=True)
+        
+        val_sigma = np.tile(w, (w.shape[0],1))
+        val_tau = np.conjugate(np.transpose(val_sigma))
+        
+        with np.errstate(divide="ignore", invalid="ignore"):
+            valterm = np.true_divide(1.,val_sigma+val_tau)
+        valterm[~np.isfinite(valterm)] = 0.
+        
+        term1 = np.tile(np.conj(vr[self.n+self.nr+1,:]), (self.val.shape[0],1))
+        term2 = np.transpose(np.tile(vr[self.nr,:], (self.val.shape[0],1)))
+        
+        term3 = np.zeros((self.val.shape[0], self.val.shape[0]))
+        term4 = np.copy(term3)
+        
+        for driver in self.drivers[1]:
+    
+            term3 += np.transpose(np.tile(np.conj(vl[self.n+driver,:]), (self.val.shape[0],1)))
+            term4 += np.tile(vl[self.n+driver,:], (self.val.shape[0],1))
+            
+        termArr = term1*term2*term3*term4*valterm
+        return  2.*self.uk/self.m*self.gamma*np.sum(termArr)
         
         
 def get_1dneighbors(n):
