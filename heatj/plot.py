@@ -233,7 +233,7 @@ def _evolve_j(lattice, g):
         
     return g, sigma
 
-def _evolve_j_alt(lattice, g):
+def _evolve_j_alt(lattice, g, choice):
     """Evaluate the *alternative* conductance as a function of the supplied damping."""
     
     g = np.array(g)
@@ -241,10 +241,17 @@ def _evolve_j_alt(lattice, g):
     
     lat = copy.deepcopy(lattice)
     
+    if choice == 0:
+        j = lat.j_alt
+    elif choice == 1:
+        j = lat.j_alt2
+    elif choice == 2:
+        j = lat.j_alt3
+    
     for i,gamma in enumerate(g):
         
         lat.gamma = gamma
-        sigma[i] = lat.j_alt()
+        sigma[i] = j()
         
     return g, sigma
     

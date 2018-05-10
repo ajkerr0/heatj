@@ -52,6 +52,9 @@ class Simple1D(Lattice):
         
         w, vl, vr = scipy.linalg.eig(a, left=True)
         
+        norm = np.diag(np.dot(np.conj(vl.T), vr))[None,:]
+        vr = vr/norm
+        
         val_sigma = np.tile(w, (w.shape[0],1))
         val_tau = np.conjugate(np.transpose(val_sigma))
         
@@ -80,6 +83,9 @@ class Simple1D(Lattice):
         
         w, vl, vr = scipy.linalg.eig(a, left=True)
         
+        norm = np.diag(np.dot(np.conj(vl.T), vr))[None,:]
+        vr = vr/norm
+        
         val_sigma = np.tile(w, (w.shape[0],1))
         val_tau = np.conjugate(np.transpose(val_sigma))
         
@@ -87,19 +93,43 @@ class Simple1D(Lattice):
             valterm = np.true_divide(1.,val_sigma+val_tau)
         valterm[~np.isfinite(valterm)] = 0.
         
-        term1 = np.tile(np.conj(vr[self.n+self.nr+1,:]), (self.val.shape[0],1))
+        term1 = np.tile(np.conjugate(vr[self.n+self.nr+1,:]), (self.val.shape[0],1))
         term2 = np.transpose(np.tile(vr[self.nr,:], (self.val.shape[0],1)))
         
-        term3 = np.zeros((self.val.shape[0], self.val.shape[0]))
+        term3 = np.zeros((self.val.shape[0], self.val.shape[0]), dtype=np.complex128)
         term4 = np.copy(term3)
         
         for driver in self.drivers[1]:
     
-            term3 += np.transpose(np.tile(np.conj(vl[self.n+driver,:]), (self.val.shape[0],1)))
+            term3 += np.transpose(np.tile(np.conjugate(vl[self.n+driver,:]), (self.val.shape[0],1)))
             term4 += np.tile(vl[self.n+driver,:], (self.val.shape[0],1))
             
         termArr = term1*term2*term3*term4*valterm
-        return  2.*self.uk/self.m*self.gamma*np.sum(termArr)
+        return  2.*self.uk/self.m*self.gamma*np.abs(np.sum(termArr))
+    
+    def j_alt3(self):
+        
+        a = np.zeros((2*self.n*self.dim, 2*self.n*self.dim))
+        a[:self.n*self.dim, self.n*self.dim:] = -self._m_matrix
+        a[self.n*self.dim:, :self.n*self.dim] = self.k
+        a[self.n*self.dim:, self.n*self.dim:] = np.dot(self._g_matrix, 
+                                                       self._m_matrix)
+        
+        w, vl, vr = scipy.linalg.eig(a, left=True)
+        
+        norm = np.diag(np.dot(np.conj(vl.T), vr))[None,:]
+        vr = vr/norm
+        
+        sigma = 0.
+        
+        for k in np.arange(2*self.n):
+            for l in np.arange(2*self.n):
+                for m in self.drivers[1]:
+                    sigma += vr.conj()[self.n+self.nr+1,l]*vr[self.nr,k]*vl.conj()[self.n+m,k]*vl[self.n+m,l]/(w[k] + np.conj(w[l]))
+
+        print(self.gamma*sigma)
+               
+        return 2.*self.uk/self.m*self.gamma*np.abs(sigma)
         
         
 def get_1dneighbors(n):
