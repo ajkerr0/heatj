@@ -86,23 +86,23 @@ class Simple1D(Lattice):
         norm = np.diag(np.dot(np.conj(vl.T), vr))[None,:]
         vr = vr/norm
         
-        val_sigma = np.tile(w, (w.shape[0],1))
-        val_tau = np.conjugate(np.transpose(val_sigma))
+        val_k = np.tile(w, (w.shape[0],1))
+        val_l = np.conjugate(np.transpose(val_k))
         
         with np.errstate(divide="ignore", invalid="ignore"):
-            valterm = np.true_divide(1.,val_sigma+val_tau)
+            valterm = np.true_divide(1.,val_k+val_l)
         valterm[~np.isfinite(valterm)] = 0.
         
-        term1 = np.tile(np.conjugate(vr[self.n+self.nr+1,:]), (self.val.shape[0],1))
-        term2 = np.transpose(np.tile(vr[self.nr,:], (self.val.shape[0],1)))
+        term1 = np.tile(np.conjugate(vr[self.n+self.nr+1,:]), (self.val.shape[0],1)).T
+        term2 = np.tile(vr[self.nr,:], (self.val.shape[0],1))
         
         term3 = np.zeros((self.val.shape[0], self.val.shape[0]), dtype=np.complex128)
         term4 = np.copy(term3)
         
         for driver in self.drivers[1]:
     
-            term3 += np.transpose(np.tile(np.conjugate(vl[self.n+driver,:]), (self.val.shape[0],1)))
-            term4 += np.tile(vl[self.n+driver,:], (self.val.shape[0],1))
+            term3 += np.tile(np.conjugate(vl[self.n+driver,:]), (self.val.shape[0],1))
+            term4 += np.tile(vl[self.n+driver,:], (self.val.shape[0],1)).T
             
         termArr = term1*term2*term3*term4*valterm
         return  2.*self.uk/self.m*self.gamma*np.abs(np.sum(termArr))
