@@ -96,16 +96,21 @@ class Simple1D(Lattice):
         term1 = np.tile(np.conjugate(vr[self.n+self.nr+1,:]), (self.val.shape[0],1)).T
         term2 = np.tile(vr[self.nr,:], (self.val.shape[0],1))
         
-        term3 = np.zeros((self.val.shape[0], self.val.shape[0]), dtype=np.complex128)
-        term4 = np.copy(term3)
+#        term3 = np.zeros((self.val.shape[0], self.val.shape[0]), dtype=np.complex128)
+#        term4 = np.copy(term3)
+        
+        kappa = 0.
         
         for driver in self.drivers[1]:
     
-            term3 += np.tile(np.conjugate(vl[self.n+driver,:]), (self.val.shape[0],1))
-            term4 += np.tile(vl[self.n+driver,:], (self.val.shape[0],1)).T
+            term3 = np.tile(np.conjugate(vl[self.n+driver,:]), (self.val.shape[0],1))
+            term4 = np.tile(vl[self.n+driver,:], (self.val.shape[0],1)).T
             
-        termArr = term1*term2*term3*term4*valterm
-        return  2.*self.uk/self.m*self.gamma*np.abs(np.sum(termArr))
+            kappa += np.sum(term1*term2*term3*term4*valterm)
+            
+#        termArr = term1*term2*term3*term4*valterm
+#        return  2.*self.uk/self.m*self.gamma*np.abs(np.sum(termArr))
+        return 2.*self.uk/self.m*self.gamma*np.abs(kappa)
     
     def j_alt3(self):
         
