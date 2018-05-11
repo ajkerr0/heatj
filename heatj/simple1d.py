@@ -55,21 +55,21 @@ class Simple1D(Lattice):
         norm = np.diag(np.dot(np.conj(vl.T), vr))[None,:]
         vr = vr/norm
         
-        val_sigma = np.tile(w, (w.shape[0],1))
-        val_tau = np.conjugate(np.transpose(val_sigma))
+        val_k = np.tile(w, (w.shape[0],1))
+        val_l = np.conjugate(np.transpose(val_k))
         
         with np.errstate(divide="ignore", invalid="ignore"):
-            valterm = np.true_divide(1.,val_sigma+val_tau)
+            valterm = np.true_divide(1.,val_k+val_l)
         valterm[~np.isfinite(valterm)] = 0.
         
         drivers = np.arange(self.nr)
         
-        return 2*self.uk/self.m*np.abs(np.einsum('l,k,mk,ml,kl->',
-                                       np.conj(vr[self.n+self.nr+1,:]),
-                                       vr[self.nr,:],
-                                       np.conj(vl[self.n+drivers,:]),
-                                       vl[self.n+drivers,:],
-                                       valterm))*self.gamma
+        return np.abs(np.einsum('l,k,mk,ml,lk->',
+                                np.conj(vr[self.n+self.nr+1,:]),
+                                vr[self.nr,:],
+                                np.conj(vl[self.n+drivers,:]),
+                                vl[self.n+drivers,:],
+                                valterm))*self.gamma*2*self.uk/self.m
                                         
     def j_alt2(self):
         """Return the heat current as defined Velizhinan et al. without using
@@ -87,20 +87,20 @@ class Simple1D(Lattice):
         vr = vr/norm
         
         val_k = np.tile(w, (w.shape[0],1))
-        val_l = np.conjugate(np.transpose(val_k))
+        val_l = np.conj(np.transpose(val_k))
         
         with np.errstate(divide="ignore", invalid="ignore"):
             valterm = np.true_divide(1.,val_k+val_l)
         valterm[~np.isfinite(valterm)] = 0.
         
-        term1 = np.tile(np.conjugate(vr[self.n+self.nr+1,:]), (self.val.shape[0],1)).T
+        term1 = np.tile(np.conj(vr[self.n+self.nr+1,:]), (self.val.shape[0],1)).T
         term2 = np.tile(vr[self.nr,:], (self.val.shape[0],1))
         
         term3 = np.zeros((self.val.shape[0], self.val.shape[0]), dtype=np.complex128)
         
         for driver in self.drivers[1]:
     
-            term3 += np.tile(np.conjugate(vl[self.n+driver,:]), (self.val.shape[0],1))* \
+            term3 += np.tile(np.conj(vl[self.n+driver,:]), (self.val.shape[0],1))* \
                      np.tile(vl[self.n+driver,:], (self.val.shape[0],1)).T
             
         termArr = term1*term2*term3*valterm
