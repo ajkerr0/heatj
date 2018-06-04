@@ -229,7 +229,7 @@ def _evolve_j(lattice, g):
         
         lat.gamma = gamma
         lat.set_greensfunc()
-        sigma[i] = lat.j()
+        sigma[i] = lat.j(choice=1)
         
     return g, sigma
 

@@ -230,7 +230,7 @@ class Lattice(object):
         elif choice == 2:
             power = self.calculate_power_einsum2
         else:
-            return self.calculate_power_uncollapsed(*self.crossings[0])
+            return 2.*self.gamma*self.calculate_power_uncollapsed(*self.crossings[0])
         
         kappa = 0.
         
