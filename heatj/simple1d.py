@@ -8,6 +8,16 @@ import scipy.linalg
 
 from . import Lattice
 
+class LinearLattice(Lattice):
+    """A 1D harmonic lattice."""
+    
+    def __init__(self, m, k, d, drivers, gamma=1.):
+        super().__init__(m,
+                         get_hessian_sequence(get_1dneighbors(len(m)),k,d),
+                         gamma,
+                         drivers,
+                         [[np.max(drivers[0]), np.max(drivers[0])+1]])
+
 class Simple1D(Lattice):
     """A 1D harmonic lattice with extend reservoirs at the ends."""
     
@@ -146,5 +156,20 @@ def get_hessian(neighbors, n, k, d, ends=True):
     if ends:
         hessian[0,0] += k
         hessian[-1,-1] += k
+        
+    return hessian
+
+def get_hessian_sequence(neighbors, kseq, dseq):
+    """
+    Return a Hessian matrix where the interaction and on-site potential
+    sequences are indexed like the N x 2 array of neighbors.
+    """
+    
+    hessian = np.diag(dseq)
+    for (i,j),k in zip(neighbors, kseq):
+        hessian[i,i] += k
+        hessian[j,j] += k
+        hessian[i,j] = -k
+        hessian[j,i] = -k
         
     return hessian
