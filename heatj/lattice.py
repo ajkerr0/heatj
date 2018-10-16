@@ -197,7 +197,7 @@ class Lattice(object):
         
         return kappa
     
-    def calculate_power_uncollapsed(self, i,j):
+    def calculate_power_uncollapsed(self, crossings):
         
         # sum over:
         # dimensions of i
@@ -219,16 +219,20 @@ class Lattice(object):
             valterm = np.true_divide(val_sigma-val_tau,val_sigma+val_tau)
         valterm[~np.isfinite(valterm)] = 0.
         
-        kappa = np.einsum('gh,ik,gi,jk,hj,ij->ij', self.k[self.dim*i:self.dim*(i+1),self.dim*j:self.dim*(j+1)],
+        kappa = np.array([0.,])
+        
+        for i,j in crossings:
+        
+            kappa = np.concatenate(np.einsum('gh,ik,gi,jk,hj,ij->ij', self.k[self.dim*i:self.dim*(i+1),self.dim*j:self.dim*(j+1)],
                                                  self.coeffs[:,driver1],
                                                  self.vec[self.dim*i:self.dim*(i+1),:],
                                                  self.coeffs[:,driver1],
                                                  self.vec[self.dim*j:self.dim*(j+1),:],
-                                                 valterm)
+                                                 valterm))
         
-        return kappa
+        return kappa[1:]
     
-    def calculate_power_uncollapsed_brute_force(self,it,jt):
+    def calculate_power_uncollapsed_brute_force(self, crossings):
         
         # pick a driven side, we will assume the same uniform damping on both
         driver1 = self.drivers[1]
@@ -237,25 +241,24 @@ class Lattice(object):
         
         n = self.val.shape[0]//2
         
-        i,j = it, jt
-#        for i,j in zip(it,jt):
+        for i,j in crossings:
         
-        for idim in range(self.dim):
-            for jdim in range(self.dim):
-                for driver in driver1:
-                    term = 0.
-                    for sigma in range(2*n):
-                        cosigma = 0.
-                        for k in np.arange(self.dim):
-                            cosigma += self.coeffs[sigma, self.dim*driver + k]
-                        for tau in range(2*n):
-                            cotau = 0.
+            for idim in range(self.dim):
+                for jdim in range(self.dim):
+                    for driver in driver1:
+                        term = 0.
+                        for sigma in range(2*n):
+                            cosigma = 0.
                             for k in np.arange(self.dim):
-                                cotau += self.coeffs[tau, self.dim*driver + k]
-                                
-                            term += self.k[self.dim*i + idim, self.dim*j + jdim]*(cosigma*cotau*(self.vec[:n,:][self.dim*i + idim ,sigma])*(
-                                    self.vec[:n,:][self.dim*j + jdim,tau])*((self.val[sigma]-self.val[tau])/(self.val[sigma]+self.val[tau])))
-                    sig_list.append(term)
+                                cosigma += self.coeffs[sigma, self.dim*driver + k]
+                            for tau in range(2*n):
+                                cotau = 0.
+                                for k in np.arange(self.dim):
+                                    cotau += self.coeffs[tau, self.dim*driver + k]
+                                    
+                                term += self.k[self.dim*i + idim, self.dim*j + jdim]*(cosigma*cotau*(self.vec[:n,:][self.dim*i + idim ,sigma])*(
+                                        self.vec[:n,:][self.dim*j + jdim,tau])*((self.val[sigma]-self.val[tau])/(self.val[sigma]+self.val[tau])))
+                        sig_list.append(term)
         return np.array(sig_list)
     
     def j(self, choice=0):
@@ -267,9 +270,9 @@ class Lattice(object):
         elif choice == 2:
             power = self.calculate_power_einsum2
         elif choice == 3:
-            return 2.*self.gamma*self.calculate_power_uncollapsed_brute_force(*self.crossings[0])
+            return 2.*self.gamma*self.calculate_power_uncollapsed_brute_force(self.crossings)
         else:
-            return 2.*self.gamma*self.calculate_power_uncollapsed(*self.crossings[0])
+            return 2.*self.gamma*self.calculate_power_uncollapsed(self.crossings)
         
         kappa = 0.
         
