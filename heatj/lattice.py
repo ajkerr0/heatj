@@ -131,6 +131,49 @@ class Lattice(object):
                     
         return kappa
     
+    def calculate_power_vector_uncollapsed(self, crossings):
+    
+        # assuming same drag constant as other driven atom
+        driver1 = self.drivers[1]
+        
+        n = self.val.shape[0]
+        
+        kappa = 0.
+        
+        val_sigma = np.tile(self.val, (n,1))
+        val_tau = np.transpose(val_sigma)
+        
+        with np.errstate(divide="ignore", invalid="ignore"):
+            valterm = np.true_divide(val_sigma-val_tau,val_sigma+val_tau)
+        valterm[~np.isfinite(valterm)] = 0.
+        
+#        kappa = np.array([0.,])
+        kappa = []
+        
+        for i,j in crossings:
+        
+            for idim in range(self.dim):
+                for jdim in range(self.dim):
+                    
+                    term3 = np.tile(self.vec[self.dim*i + idim,:], (n,1))
+                    term4 = np.transpose(np.tile(self.vec[self.dim*j + jdim,:], (n,1)))
+                    
+                    for driver in driver1:
+                        
+                        dterm = np.zeros((self.coeffs.shape[0],), dtype=np.complex128)
+                        for k in range(self.dim):
+                            dterm += self.coeffs[:, self.dim*driver + k]
+            
+                        term1 = np.tile(dterm, (n,1))
+                        term2 = np.transpose(term1)
+                        termArr = term1*term2*term3*term4*valterm*self.k[self.dim*i + idim, self.dim*j + jdim]
+                        
+#                        kappa = np.concatenate((kappa, self.k[self.dim*i + idim, self.dim*j + jdim]*np.hstack(termArr)))
+                        kappa.extend(np.hstack(termArr).tolist())
+        
+#        return kappa[1:]
+        return np.array(kappa)
+    
     def calculate_power_einsum(self, i,j):
         
         # sum over:
@@ -271,6 +314,8 @@ class Lattice(object):
             power = self.calculate_power_einsum2
         elif choice == 3:
             return 2.*self.gamma*self.calculate_power_uncollapsed_brute_force(self.crossings)
+        elif choice == 4:
+            return 2.*self.gamma*self.calculate_power_vector_uncollapsed(self.crossings)
         else:
             return 2.*self.gamma*self.calculate_power_uncollapsed(self.crossings)
         
