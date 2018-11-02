@@ -63,7 +63,9 @@ class Lattice(object):
         a[self.n*self.dim:, self.n*self.dim:] = np.dot(self._g_matrix, 
                                                        self._m_matrix)
         
-        return np.linalg.eig(a)
+        val, vec = np.linalg.eig(a)
+        val[np.where(np.abs(val) < 1e-4)[0]] = 0.+0.j
+        return val, vec
     
     def _calculate_coeffs(self):
         """Return the M x N Green's function coefficient matrix where
