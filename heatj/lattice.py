@@ -5,8 +5,6 @@
 
 import numpy as np
 
-from .timeit import timeit
-
 class Lattice(object):
     
     def __init__(self, m, k, g, drivers, crossings):
@@ -15,6 +13,8 @@ class Lattice(object):
         self.gamma = g
         self.drivers = np.asarray(drivers)
         self.crossings = np.asarray(crossings)
+        if self.k.shape[0] % self.mass.shape[0] != 0:
+            raise ValueError("Invalid ratio of masses to springs.")
         self.dim = self.k.shape[0]//self.mass.shape[0]
         self.n = self.mass.shape[0]
         self.set_greensfunc()
@@ -64,8 +64,10 @@ class Lattice(object):
                                                        self._m_matrix)
         
         val, vec = np.linalg.eig(a)
-        val[np.where(np.abs(val) < 1e-4)[0]] = 0.+0.j
+#        val[np.where(np.abs(val) < 1e-8)[0]] = 0.+0.j
+#        val[np.where(np.abs(val.imag) < 1e-6)[0]] = 0.+0.j
         return val, vec
+#        return val[:-12], vec[:,:-12]
     
     def _calculate_coeffs(self):
         """Return the M x N Green's function coefficient matrix where
@@ -133,14 +135,14 @@ class Lattice(object):
                     
         return kappa
     
-    def calculate_power_vector_uncollapsed(self, crossings):
+    def calculate_power_vector_uncollapsed(self, i,j):
     
         # assuming same drag constant as other driven atom
         driver1 = self.drivers[1]
         
         n = self.val.shape[0]
         
-        kappa = 0.
+        kappa = np.zeros((n,n), dtype=np.complex128)
         
         val_sigma = np.tile(self.val, (n,1))
         val_tau = np.transpose(val_sigma)
@@ -149,32 +151,24 @@ class Lattice(object):
             valterm = np.true_divide(val_sigma-val_tau,val_sigma+val_tau)
         valterm[~np.isfinite(valterm)] = 0.
         
-#        kappa = np.array([0.,])
-        kappa = []
-        
-        for i,j in crossings:
-        
-            for idim in range(self.dim):
-                for jdim in range(self.dim):
+        for idim in range(self.dim):
+            for jdim in range(self.dim):
+                
+                term3 = np.tile(self.vec[self.dim*i + idim,:], (n,1))
+                term4 = np.transpose(np.tile(self.vec[self.dim*j + jdim,:], (n,1)))
+                
+                for driver in driver1:
                     
-                    term3 = np.tile(self.vec[self.dim*i + idim,:], (n,1))
-                    term4 = np.transpose(np.tile(self.vec[self.dim*j + jdim,:], (n,1)))
-                    
-                    for driver in driver1:
-                        
-                        dterm = np.zeros((self.coeffs.shape[0],), dtype=np.complex128)
-                        for k in range(self.dim):
-                            dterm += self.coeffs[:, self.dim*driver + k]
-            
-                        term1 = np.tile(dterm, (n,1))
-                        term2 = np.transpose(term1)
-                        termArr = term1*term2*term3*term4*valterm*self.k[self.dim*i + idim, self.dim*j + jdim]
-                        
-#                        kappa = np.concatenate((kappa, self.k[self.dim*i + idim, self.dim*j + jdim]*np.hstack(termArr)))
-                        kappa.extend(np.hstack(termArr).tolist())
+                    dterm = np.zeros((self.coeffs.shape[0],), dtype=np.complex128)
+                    for k in range(self.dim):
+                        dterm += self.coeffs[:, self.dim*driver + k]
         
-#        return kappa[1:]
-        return np.array(kappa)
+                    term1 = np.tile(dterm, (n,1))
+                    term2 = np.transpose(term1)
+                    termArr = term1*term2*term3*term4*valterm
+                    kappa += self.k[self.dim*i + idim, self.dim*j + jdim]*termArr
+                    
+        return kappa
     
     def calculate_power_einsum(self, i,j):
         
@@ -306,6 +300,47 @@ class Lattice(object):
                         sig_list.append(term)
         return np.array(sig_list)
     
+    def freq_power(self, i,j, omega):
+        
+        # assuming same drag constant as other driven atom
+        driver1 = self.drivers[1]
+        
+        n = self.val.shape[0]
+        
+        kappa = 0.
+        
+        val_sigma = np.tile(self.val, (n,1))
+        val_tau = np.transpose(val_sigma)
+        
+        with np.errstate(divide="ignore", invalid="ignore"):
+#            valterm = np.true_divide(val_tau-val_sigma,
+#                                     (val_sigma + 1.j*omega)*(val_tau - 1.j*omega))
+            valterm  = np.true_divide(val_tau,
+                                      2.*(val_sigma + 1.j*omega)*(val_tau - 1.j*omega))
+            valterm += np.true_divide(val_tau,
+                                      2.*(val_sigma - 1.j*omega)*(val_tau + 1.j*omega))
+        valterm[~np.isfinite(valterm)] = 0.
+        
+        for idim in range(self.dim):
+            for jdim in range(self.dim):
+                
+                term3 = np.tile(self.vec[self.dim*i + idim,:], (n,1))
+                term4 = np.transpose(np.tile(self.vec[self.dim*j + jdim,:], (n,1)))
+                
+                for driver in driver1:
+                    
+                    dterm = np.zeros((self.coeffs.shape[0],), dtype=np.complex128)
+                    for k in range(self.dim):
+                        dterm += self.coeffs[:, self.dim*driver + k]
+        
+                    term1 = np.tile(dterm, (n,1))
+                    term2 = np.transpose(term1)
+                    termArr = term1*term2*term3*term4*valterm
+                    kappa += self.k[self.dim*i + idim, self.dim*j + jdim]* \
+                             np.sum(termArr)
+                    
+        return kappa
+    
     def j(self, choice=0):
         
         if choice == 0:
@@ -317,7 +352,10 @@ class Lattice(object):
         elif choice == 3:
             return 2.*self.gamma*self.calculate_power_uncollapsed_brute_force(self.crossings)
         elif choice == 4:
-            return 2.*self.gamma*self.calculate_power_vector_uncollapsed(self.crossings)
+            kappa = np.zeros([self.val.shape[0]]*2, dtype=np.complex128)
+            for i,j in self.crossings:
+                kappa += self.gamma*self.calculate_power_vector_uncollapsed(i,j)
+            return 2.*self.gamma*kappa
         else:
             return 2.*self.gamma*self.calculate_power_uncollapsed(self.crossings)
         

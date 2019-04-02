@@ -162,7 +162,7 @@ def get_hessian(neighbors, n, k, d, ends=True):
 def get_hessian_sequence(neighbors, kseq, dseq):
     """
     Return a Hessian matrix where the interaction and on-site potential
-    sequences are indexed like the N x 2 array of neighbors.
+    sequences are indexed like the N x 2 array of input neighbors.
     """
     
     hessian = np.diag(dseq)
