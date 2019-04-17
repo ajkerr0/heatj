@@ -63,11 +63,7 @@ class Lattice(object):
         a[self.n*self.dim:, self.n*self.dim:] = np.dot(self._g_matrix, 
                                                        self._m_matrix)
         
-        val, vec = np.linalg.eig(a)
-#        val[np.where(np.abs(val) < 1e-8)[0]] = 0.+0.j
-#        val[np.where(np.abs(val.imag) < 1e-6)[0]] = 0.+0.j
-        return val, vec
-#        return val[:-12], vec[:,:-12]
+        return np.linalg.eig(a)
     
     def _calculate_coeffs(self):
         """Return the M x N Green's function coefficient matrix where
@@ -99,7 +95,12 @@ class Lattice(object):
     
         return np.linalg.solve(A,B)
     
-    def calculate_power_vector(self, i,j):
+    def calculate_power_numpy(self):
+        
+        # sum over crossings, k, sigma, tau
+        pass
+    
+    def calculate_power_vector(self, i, j):
     
         # assuming same drag constant as other driven atom
         driver1 = self.drivers[1]
