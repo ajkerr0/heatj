@@ -98,7 +98,96 @@ class Lattice(object):
     def calculate_power_numpy(self):
         
         # sum over crossings, k, sigma, tau
-        pass
+        
+        # assuming same drag constant as other driven atom
+        driver1 = self.drivers[1]
+        # include dimensions of the drivers
+        driver1 = np.repeat(self.dim*driver1, self.dim) + np.tile(np.arange(self.dim), driver1.shape[0])
+#        print(driver1)
+        
+        # get the crossings
+        crossings = []
+        for i in np.arange(self.dim):
+            for j in np.arange(self.dim):
+                middle = self.crossings*self.dim
+                middle[:,0] += i
+                middle[:,1] += j
+                crossings.extend(middle.tolist())
+        crossings = np.array(crossings)
+#        print(crossings)
+        
+        n = self.val.shape[0]
+        nd = driver1.shape[0]
+        nc = crossings.shape[0]
+        
+        val_sigma = np.tile(self.val, (n,1))
+        val_tau = np.transpose(val_sigma)
+        
+        with np.errstate(divide="ignore", invalid="ignore"):
+            valterm = np.true_divide(val_sigma-val_tau,val_sigma+val_tau)
+        valterm[~np.isfinite(valterm)] = 0.
+        
+        sigma  = np.tile(valterm, (nd, nc, 1, 1))
+#        sigma *= np.tile(self.vec[crossings[:,0],:], (nd, ))
+#        print(self.vec[crossings[:,0], :].shape)
+        sigma *= np.tile(np.einsum('io,it->ito', 
+                                   self.vec[crossings[:,0],:], 
+                                   self.vec[crossings[:,1],:]),
+                         (nd,1,1,1))
+            #np.swapaxes(np.tile(np.einsum('ok,tk->kto',
+        sigma *= np.swapaxes(np.tile(np.einsum('ok,tk->kot',
+                                               self.coeffs[:, driver1],
+                                               self.coeffs[:, driver1]),
+                                     (nc,1,1,1)), 
+                             0,1)
+        
+#        print(sigma.shape)
+#        print(self.k.shape)
+#        print(self.k[crossings[:,0], crossings[:,1]])
+        return 2.*self.gamma*np.abs(np.sum(self.k[crossings[:,0], crossings[:,1]][None,:,None,None]*sigma).real)
+        
+#        sigma *= np.tile(np.einsum('ko,kt->kto',
+#                                   self.coeffs[:, driver1],
+#                                   self.coeffs[:, driver1]),
+#                         (1,nc,1,1))
+#        print(np.einsum('ok,tk->kto',self.coeffs[:, driver1],self.coeffs[:, driver1]).shape)
+#        print(np.swapaxes(np.tile(np.einsum('ok,tk->kto',self.coeffs[:, driver1],self.coeffs[:, driver1]),(nc,1,1,1)), 0,1).shape)
+        
+    
+    def calculate_power_b(self):
+        
+        # assuming same drag constant as other driven atom
+        driver1 = self.drivers[1]
+        # include dimensions of the drivers
+        driver1 = np.repeat(self.dim*driver1, self.dim) + np.tile(np.arange(self.dim), driver1.shape[0])
+        
+        # get the crossings
+        crossings = []
+        for i in np.arange(self.dim):
+            for j in np.arange(self.dim):
+                middle = self.crossings*self.dim
+                middle[:,0] += i
+                middle[:,1] += j
+                crossings.extend(middle.tolist())
+        crossings = np.array(crossings)
+        
+        n = self.val.shape[0]
+        nd = driver1.shape[0]
+        nc = crossings.shape[0]
+        
+        kappa = 0.
+        
+        for i,j in crossings:
+            
+            for k in driver1:
+                
+                for sigma in np.arange(n):
+                    
+                    for tau in np.arange(n):
+                        
+                        kappa += self.k[i,j]*self.vec[j,tau]*self.vec[i,sigma]*self.coeffs[sigma,k]*self.coeffs[tau,k]*((self.val[sigma]-self.val[tau])/(self.val[sigma]+self.val[tau]))
+                        
+        return 2.*self.gamma*kappa
     
     def calculate_power_vector(self, i, j):
     
@@ -184,7 +273,7 @@ class Lattice(object):
         driver1 = self.drivers[1]
         
         # include dimensions of the drivers
-        driver1 = np.repeat(driver1, self.dim) + np.tile(np.arange(self.dim), driver1.shape[0])
+        driver1 = np.repeat(self.dim*driver1, self.dim) + np.tile(np.arange(self.dim), driver1.shape[0])
 
         kappa = 0.
         
@@ -219,7 +308,7 @@ class Lattice(object):
         driver1 = self.drivers[1]
         
         # include dimensions of the drivers
-        driver1 = np.repeat(driver1, self.dim) + np.tile(np.arange(self.dim), driver1.shape[0])
+        driver1 = np.repeat(self.dim*driver1, self.dim) + np.tile(np.arange(self.dim), driver1.shape[0])
         
         val_sigma = np.tile(self.val, (self.val.shape[0],1))
         val_tau = np.transpose(val_sigma)
@@ -366,11 +455,3 @@ class Lattice(object):
             kappa += power(i,j)
             
         return 2.*self.gamma*np.abs(kappa.real)
-    
-
-    
-
-    
-        
-        
-        

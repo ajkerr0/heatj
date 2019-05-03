@@ -38,14 +38,3 @@ def find_heat_channels(r, neighbors, pos, cutoff=6., bond_cutoff=4):
         
     channels.sort()
     return list(k for k,_ in itertools.groupby(channels))
-        
-        
-                        
-    
-    
-    
-
-    
-        
-        
-        
