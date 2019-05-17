@@ -185,6 +185,12 @@ class Lattice(object):
                     
                     for tau in np.arange(n):
                         
+                        print('i', i)
+                        print('j', j)
+                        print('k', k)
+                        print('o', sigma)
+                        print('t', tau)
+                        
                         kappa += self.k[i,j]*self.vec[j,tau]*self.vec[i,sigma]*self.coeffs[sigma,k]*self.coeffs[tau,k]*((self.val[sigma]-self.val[tau])/(self.val[sigma]+self.val[tau]))
                         
         return 2.*self.gamma*kappa
@@ -383,12 +389,52 @@ class Lattice(object):
                             for tau in range(2*n):
                                 cotau = 0.
                                 for k in np.arange(self.dim):
+                                    print('i', self.dim*i + idim)
+                                    print('j', self.dim*j + jdim)
+                                    print('k', self.dim*driver + k)
+                                    print('o', sigma)
+                                    print('t', tau)
+                                    
                                     cotau += self.coeffs[tau, self.dim*driver + k]
                                     
                                 term += self.k[self.dim*i + idim, self.dim*j + jdim]*(cosigma*cotau*(self.vec[:n,:][self.dim*i + idim ,sigma])*(
                                         self.vec[:n,:][self.dim*j + jdim,tau])*((self.val[sigma]-self.val[tau])/(self.val[sigma]+self.val[tau])))
                         sig_list.append(term)
         return np.array(sig_list)
+    
+    def bforce(self):
+        
+        # pick a driven side, we will assume the same uniform damping on both
+        driver1 = self.drivers[1]
+        
+        sig_list = []
+        
+        n = self.val.shape[0]//2
+        
+        kappa = 0.
+        
+        for i,j in self.crossings:
+        
+            for idim in range(self.dim):
+                for jdim in range(self.dim):
+                    for driver in driver1:
+                        for kdim in range(self.dim):
+                            for sigma in range(2*n):
+                                for tau in range(2*n):
+                                    print('i', self.dim*i + idim)
+                                    print('j', self.dim*j + jdim)
+                                    print('k', self.dim*driver + kdim)
+                                    print('o', sigma)
+                                    print('t', tau)
+                                    
+                                    kappa += self.k[self.dim*i + idim, self.dim*j +jdim]* \
+                                             self.coeffs[sigma, self.dim*driver + kdim]* \
+                                             self.coeffs[tau, self.dim*driver + kdim]* \
+                                             self.vec[:n,:][self.dim*i + idim ,sigma]* \
+                                             self.vec[:n,:][self.dim*j + jdim,tau]* \
+                                             ((self.val[sigma]-self.val[tau])/(self.val[sigma]+self.val[tau]))
+                                    
+        return 2.*self.gamma*kappa                             
     
     def freq_power(self, i,j, omega):
         
