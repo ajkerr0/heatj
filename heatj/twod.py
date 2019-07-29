@@ -28,6 +28,8 @@ class SquareLattice(Lattice):
     
     def __init__(self, height, length, m, k, d, gamma=1.):
         pos = self.square_pos(height, length)
+        self.height = height
+        self.length = length
         neighbors, channels, drivers = self.interactions(height, length)
         super().__init__(m,
                          general_hessian(pos, k, neighbors, d),

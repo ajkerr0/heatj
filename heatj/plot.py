@@ -8,6 +8,29 @@ import copy
 import numpy as np
 import matplotlib.pyplot as plt
 
+def square_mchain(mchain):
+    """
+    Plot a 2D square lattice with different mass values.
+    """
+    
+    h,l = mchain.shape
+    
+    pos = np.zeros((h*l,2))
+    pos[:,0] = np.tile(np.arange(l),h)
+    pos[:,1] = np.repeat(np.arange(h),l)
+    
+    cm = plt.get_cmap('cool')
+    mmax, mmin = np.max(mchain), np.min(mchain)
+    mrange = mmax - mmin
+    
+    def color(m):
+        return cm((m - mmin)/mrange)
+    
+    plt.figure()
+    plt.scatter(pos[:,0], pos[:,1], c=color(mchain.reshape(-1)), s=400)
+    plt.axis('equal')
+    plt.show()
+
 def single_modes(modes):
     """Plot a series of 1D modes"""
     
