@@ -69,9 +69,6 @@ class SquareLattice(Lattice):
         for site in a[:,0]:
             channels.append([site,site+1])
             
-        for site in a[:,-2]:
-            channels.append([site,site+1])
-            
         # drivers
         drivers.append(a[:,0].tolist())
         drivers.append(a[:,-1].tolist())
