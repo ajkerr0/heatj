@@ -36,15 +36,16 @@ def perform_md(lattice, t_span, nt, temp1, temp2, solver_options={}):
     jac[n*dim:, n*dim:] = -np.matmul(inv_mass_mat, gamma_mat)
     
     times = np.linspace(*t_span, num=nt)
-    force_hot  = np.sqrt(2.*lattice.gamma*temp2)*np.random.randn(nt, nd)
-    force_cold = np.sqrt(2.*lattice.gamma*temp1)*np.random.randn(nt, nd)
+    force_hot  = np.sqrt(2.*lattice.gamma*temp2)*np.random.randn(nt, nd, dim)
+    force_cold = np.sqrt(2.*lattice.gamma*temp1)*np.random.randn(nt, nd, dim)
     
     def rforce(t):
         
         force = np.zeros(dim*n)
         tindex = np.searchsorted(times, t)
-        force[lattice.drivers[0]] = force_cold[tindex]
-        force[lattice.drivers[1]] = force_hot[tindex]
+        for i in np.arange(dim):
+            force[dim*lattice.drivers[0] + i] = force_cold[tindex,:,i]
+            force[dim*lattice.drivers[1] + i] = force_hot[tindex,:,i]
         
         return force
     
