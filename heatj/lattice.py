@@ -332,6 +332,40 @@ class Lattice(object):
         
         return kappa
     
+    def calculate_power_einsum3(self, i,j):
+        
+        # sum over:
+        # dimensions of i
+        # dimensions of j
+        # number of drivers
+        # sigma
+        # tau
+        
+        # pick a driven side, we will assume the same uniform damping on both
+        driver1 = self.drivers[1]
+        
+        # include dimensions of the drivers
+        driver1 = np.repeat(self.dim*driver1, self.dim) + np.tile(np.arange(self.dim), driver1.shape[0])
+
+        kappa = 0.
+        
+        val_sigma = np.tile(self.val, (self.val.shape[0],1))
+        val_tau = np.transpose(val_sigma)
+        
+        with np.errstate(divide="ignore", invalid="ignore"):
+            valterm = np.true_divide(val_sigma-val_tau,val_sigma+val_tau)
+        valterm[~np.isfinite(valterm)] = 0.
+        
+        for idim in np.arange(self.dim):
+            kappa += self.k[self.dim*i + idim, self.dim*j + idim]* \
+                     np.einsum('ik,i,jk,j,ij->', self.coeffs[:,driver1],
+                                                 self.vec[self.dim*i + idim,:],
+                                                 self.coeffs[:,driver1],
+                                                 self.vec[self.dim*j + idim,:],
+                                                 valterm)
+        
+        return kappa
+    
     def calculate_power_uncollapsed(self, crossings):
         
         # sum over:
@@ -402,7 +436,7 @@ class Lattice(object):
                         sig_list.append(term)
         return np.array(sig_list)
     
-    def bforce(self):
+    def bforce(self, verbose=False):
         
         # pick a driven side, we will assume the same uniform damping on both
         driver1 = self.drivers[1]
@@ -421,11 +455,12 @@ class Lattice(object):
                         for kdim in range(self.dim):
                             for sigma in range(2*n):
                                 for tau in range(2*n):
-                                    print('i', self.dim*i + idim)
-                                    print('j', self.dim*j + jdim)
-                                    print('k', self.dim*driver + kdim)
-                                    print('o', sigma)
-                                    print('t', tau)
+                                    if verbose:
+                                        print('i', self.dim*i + idim)
+                                        print('j', self.dim*j + jdim)
+                                        print('k', self.dim*driver + kdim)
+                                        print('o', sigma)
+                                        print('t', tau)
                                     
                                     kappa += self.k[self.dim*i + idim, self.dim*j +jdim]* \
                                              self.coeffs[sigma, self.dim*driver + kdim]* \
@@ -434,7 +469,41 @@ class Lattice(object):
                                              self.vec[:n,:][self.dim*j + jdim,tau]* \
                                              ((self.val[sigma]-self.val[tau])/(self.val[sigma]+self.val[tau]))
                                     
-        return 2.*self.gamma*kappa                             
+        return 2.*self.gamma*kappa
+
+    def bforce2(self, verbose=False):
+        
+        # pick a driven side, we will assume the same uniform damping on both
+        driver1 = self.drivers[1]
+        
+        sig_list = []
+        
+        n = self.val.shape[0]//2
+        
+        kappa = 0.
+        
+        for i,j in self.crossings:
+        
+            for idim in range(self.dim):
+                for driver in driver1:
+                    for kdim in range(self.dim):
+                        for sigma in range(2*n):
+                            for tau in range(2*n):
+                                if verbose:
+                                    print('i', self.dim*i + idim)
+                                    print('j', self.dim*j + idim)
+                                    print('k', self.dim*driver + kdim)
+                                    print('o', sigma)
+                                    print('t', tau)
+                                
+                                kappa += self.k[self.dim*i + idim, self.dim*j +idim]* \
+                                         self.coeffs[sigma, self.dim*driver + kdim]* \
+                                         self.coeffs[tau, self.dim*driver + kdim]* \
+                                         self.vec[:n,:][self.dim*i + idim ,sigma]* \
+                                         self.vec[:n,:][self.dim*j + idim,tau]* \
+                                         ((self.val[sigma]-self.val[tau])/(self.val[sigma]+self.val[tau]))
+                                    
+        return 2.*self.gamma*kappa                           
     
     def freq_power(self, i,j, omega):
         
@@ -492,6 +561,8 @@ class Lattice(object):
             for i,j in self.crossings:
                 kappa += self.gamma*self.calculate_power_vector_uncollapsed(i,j)
             return 2.*self.gamma*kappa
+        elif choice == 5:
+            power = self.calculate_power_einsum3
         else:
             return 2.*self.gamma*self.calculate_power_uncollapsed(self.crossings)
         
