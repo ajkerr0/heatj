@@ -78,37 +78,35 @@ def perform_md_gf(lattice, t_span, nt, temp1, temp2):
     Return the Green's function solution to the positions/velocities
     of lattice objects.
     """
-        
+    
+#    nt -= 1
     n = lattice.mass.shape[0]
     nd = lattice.drivers.shape[1]  # number of drivers on each side
     dim = lattice.dim
     
-    times = np.linspace(*t_span, num=nt)
+    times = np.linspace(*t_span, num=nt+1)
     
-    force = np.zeros((nt, n*dim, 1))
+    force = np.zeros((n*dim, nt))
     for i in np.arange(dim):
-        force[:,dim*lattice.drivers[0] + i] = np.sqrt(2.*lattice.gamma*temp1)*np.random.randn(nt, nd, 1)
-        force[:,dim*lattice.drivers[1] + i] = np.sqrt(2.*lattice.gamma*temp2)*np.random.randn(nt, nd, 1)
+        force[dim*lattice.drivers[0] + i, :] = np.sqrt(2.*lattice.gamma*temp1)*np.random.randn(nd, nt)
+        force[dim*lattice.drivers[1] + i, :] = np.sqrt(2.*lattice.gamma*temp2)*np.random.randn(nd, nt)
         
-    y = np.zeros((2*n, nt))
+    y = np.zeros((2*dim*n, nt+1))
         
-    for t_i in np.arange(1, nt):
-        
-        t = times[:t_i]
+    ti, tf = t_span
+    dt = (tf-ti)/nt
     
-        gf = lattice.val[:,None]*(-(t[-1] - t)[:,None,None]*np.ones((t_i, 2*n, n)))
-        gf = lattice.coeffs[None,:]*np.exp(gf)
-        q = np.dot(lattice.vec[:n,:], gf).reshape(t_i, n, n)
-        qdot = np.dot(lattice.vec[n:,:], gf).reshape(t_i, n, n)
-        
-        f = force[:t_i,:,:]
-        
-        q = np.matmul(q, f)[:,:,0].T.real
-        qdot = np.matmul(qdot, f)[:,:,0].T.real
-        
+    gf = lattice.val[:,None]*dt*np.ones((2*dim*n, dim*n))
+    gf = lattice.coeffs[None,:]*np.exp(gf)
+    q = np.matmul(lattice.vec[:n,:], gf)
+    qdot = np.matmul(lattice.vec[n:,:], gf)
+    
+    q = np.matmul(q, force).real
+    qdot = np.matmul(qdot, force).real
+    
 
-        y[:n,t_i] = np.sum(q, axis=1)
-        y[n:,t_i] = np.sum(qdot, axis=1)
+    y[:dim*n,1:] = np.cumsum(q, axis=1)
+    y[dim*n:,1:] = np.cumsum(qdot, axis=1)
     
     return MDBatch(times, y)
         
