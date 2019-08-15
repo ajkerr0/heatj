@@ -1,7 +1,7 @@
 
 
 import numpy as np
-from scipy.integrate import solve_ivp
+from scipy.integrate import solve_ivp, cumtrapz
 
 class MDBatch(object):
     
@@ -79,19 +79,21 @@ def perform_md_gf(lattice, t_span, nt, temp1, temp2):
     of lattice objects.
     """
     
-#    nt -= 1
     n = lattice.mass.shape[0]
     nd = lattice.drivers.shape[1]  # number of drivers on each side
     dim = lattice.dim
     
-    times = np.linspace(*t_span, num=nt+1)
+    times = np.linspace(*t_span, num=nt)
+    
+    force_hot  = np.sqrt(2.*lattice.gamma*temp2)*np.random.randn(nd, nt, dim)
+    force_cold = np.sqrt(2.*lattice.gamma*temp1)*np.random.randn(nd, nt, dim)
     
     force = np.zeros((n*dim, nt))
     for i in np.arange(dim):
-        force[dim*lattice.drivers[0] + i, :] = np.sqrt(2.*lattice.gamma*temp1)*np.random.randn(nd, nt)
-        force[dim*lattice.drivers[1] + i, :] = np.sqrt(2.*lattice.gamma*temp2)*np.random.randn(nd, nt)
+        force[dim*lattice.drivers[0] + i, :] = force_cold[:,:,i]
+        force[dim*lattice.drivers[1] + i, :] = force_hot[:,:,i]
         
-    y = np.zeros((2*dim*n, nt+1))
+    y = np.zeros((2*dim*n, nt))
         
     ti, tf = t_span
     dt = (tf-ti)/nt
@@ -101,12 +103,69 @@ def perform_md_gf(lattice, t_span, nt, temp1, temp2):
     q = np.matmul(lattice.vec[:n*dim,:], gf)
     qdot = np.matmul(lattice.vec[n*dim:,:], gf)
     
+    print(q.real)
+    print(qdot.real)
+    
+    print(force[:,:2])
+    
     q = np.matmul(q, force).real
     qdot = np.matmul(qdot, force).real
     
+    print(q)
+    print(qdot)
+    
+    print(q.shape)
+    print(qdot.shape)
+    
 
-    y[:dim*n,1:] = np.cumsum(q, axis=1)
-    y[dim*n:,1:] = np.cumsum(qdot, axis=1)
+    y[:dim*n,1:] = cumtrapz(q, times, axis=1)
+    y[dim*n:,1:] = cumtrapz(qdot, times, axis=1)
+    
+    return MDBatch(times, y)
+
+def perform_md_gf2(lattice, t_span, nt, temp1, temp2):
+    """
+    Return the Green's function solution to the positions/velocities
+    of lattice objects.
+    """
+        
+    n = lattice.mass.shape[0]
+    nd = lattice.drivers.shape[1]  # number of drivers on each side
+    dim = lattice.dim
+    
+    times = np.linspace(*t_span, num=nt)
+    
+    ti, tf = t_span
+    dt = (tf-ti)/nt
+    
+    force = np.zeros((nt, n*dim, 1))
+    for i in np.arange(dim):
+        force[:,dim*lattice.drivers[0] + i] = np.sqrt(2.*lattice.gamma*temp1)*np.random.randn(nt, nd, 1)
+        force[:,dim*lattice.drivers[1] + i] = np.sqrt(2.*lattice.gamma*temp2)*np.random.randn(nt, nd, 1)
+        
+    y = np.zeros((2*n, nt))
+        
+    for t_i in np.arange(1, nt):
+        
+        t = times[:t_i]
+    
+        gf = lattice.val[:,None]*((t[-1] - t)[:,None,None]*np.ones((t_i, 2*n, n)))
+        gf = lattice.coeffs[None,:]*np.exp(gf)
+        q = np.dot(lattice.vec[:n,:], gf).reshape(t_i, n, n)
+        qdot = np.dot(lattice.vec[n:,:], gf).reshape(t_i, n, n)
+        
+        if t_i == 2:
+            print(q.real)
+            print(qdot.real)
+        
+        f = force[:t_i,:,:]
+        
+        q = np.matmul(q, f)[:,:,0].T.real
+        qdot = np.matmul(qdot, f)[:,:,0].T.real
+        
+
+        y[:n,t_i] = np.sum(q, axis=1)*dt
+        y[n:,t_i] = np.sum(qdot, axis=1)*dt
     
     return MDBatch(times, y)
         
