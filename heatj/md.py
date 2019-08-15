@@ -97,9 +97,9 @@ def perform_md_gf(lattice, t_span, nt, temp1, temp2):
     dt = (tf-ti)/nt
     
     gf = lattice.val[:,None]*dt*np.ones((2*dim*n, dim*n))
-    gf = lattice.coeffs[None,:]*np.exp(gf)
-    q = np.matmul(lattice.vec[:n,:], gf)
-    qdot = np.matmul(lattice.vec[n:,:], gf)
+    gf = lattice.coeffs*np.exp(gf)
+    q = np.matmul(lattice.vec[:n*dim,:], gf)
+    qdot = np.matmul(lattice.vec[n*dim:,:], gf)
     
     q = np.matmul(q, force).real
     qdot = np.matmul(qdot, force).real
