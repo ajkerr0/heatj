@@ -158,4 +158,41 @@ def perform_md_gf2(lattice, t_span, nt, temp1, temp2):
         y[n:,t_i] = np.sum(qdot, axis=1)*dt
     
     return MDBatch(times, y)
+
+def perform_md_gf3(lattice, t_span, nt, temp1, temp2):
+    """
+    Return the Green's function solution to the positions/velocities
+    of lattice objects.
+    """
+        
+    n = lattice.mass.shape[0]
+    nd = lattice.drivers.shape[1]  # number of drivers on each side
+    dim = lattice.dim
+    
+    times = np.linspace(*t_span, num=nt)
+    
+    ti, tf = t_span
+    dt = (tf-ti)/nt
+    
+    force_hot  = np.sqrt(2.*lattice.gamma*temp2)*np.random.randn(nd, nt, dim)
+    force_cold = np.sqrt(2.*lattice.gamma*temp1)*np.random.randn(nd, nt, dim)
+    
+    force = np.zeros((n*dim, nt))
+    for i in np.arange(dim):
+        force[dim*lattice.drivers[0] + i, :] = force_cold[:,:,i]
+        force[dim*lattice.drivers[1] + i, :] = force_hot[:,:,i]
+        
+    y = np.zeros((2*n, nt))
+    
+    t, tprime = np.meshgrid(times, times)
+    del_ts = np.tril(tprime-t) + np.triu(np.full((nt, nt), np.inf), k=1)
+    
+    gf = np.einsum('ij, k, l -> ijkl', del_ts, lattice.val, np.ones(dim*n), optimize='greedy')
+    gf = lattice.coeffs[None,None,:,:]*np.exp(gf)
+    
+    q = np.matmul(lattice.vec, gf).real
+    
+    q = np.einsum('ijkl, lj -> ki', q, force, optimize='greedy')
+    
+    return MDBatch(times, q*dt)
         
