@@ -100,26 +100,16 @@ def perform_md_gf(lattice, t_span, nt, temp1, temp2):
     
     gf = lattice.val[:,None]*dt*np.ones((2*dim*n, dim*n))
     gf = lattice.coeffs*np.exp(gf)
-    q = np.matmul(lattice.vec[:n*dim,:], gf)
-    qdot = np.matmul(lattice.vec[n*dim:,:], gf)
+    q = np.matmul(lattice.vec[:n*dim,:], gf).real
+    qdot = np.matmul(lattice.vec[n*dim:,:], gf).real
     
-    print(q.real)
-    print(qdot.real)
-    
-    print(force[:,:2])
-    
-    q = np.matmul(q, force).real
-    qdot = np.matmul(qdot, force).real
-    
-    print(q)
-    print(qdot)
-    
-    print(q.shape)
-    print(qdot.shape)
-    
+    q = np.matmul(q, force)
+    qdot = np.matmul(qdot, force)
 
-    y[:dim*n,1:] = cumtrapz(q, times, axis=1)
-    y[dim*n:,1:] = cumtrapz(qdot, times, axis=1)
+    y[:dim*n,:] = q*dt
+    y[dim*n:,:] = qdot*dt
+#    y[:dim*n,1:] = cumtrapz(q, times, axis=1)
+#    y[dim*n:,1:] = cumtrapz(qdot, times, axis=1)
     
     return MDBatch(times, y)
 
@@ -151,8 +141,8 @@ def perform_md_gf2(lattice, t_span, nt, temp1, temp2):
     
         gf = lattice.val[:,None]*((t[-1] - t)[:,None,None]*np.ones((t_i, 2*n, n)))
         gf = lattice.coeffs[None,:]*np.exp(gf)
-        q = np.dot(lattice.vec[:n,:], gf).reshape(t_i, n, n)
-        qdot = np.dot(lattice.vec[n:,:], gf).reshape(t_i, n, n)
+        q = np.matmul(lattice.vec[:n,:], gf)
+        qdot = np.matmul(lattice.vec[n:,:], gf)                                                                                                           
         
         if t_i == 2:
             print(q.real)
