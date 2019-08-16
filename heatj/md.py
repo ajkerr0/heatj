@@ -133,20 +133,16 @@ def perform_md_gf2(lattice, t_span, nt, temp1, temp2):
         force[:,dim*lattice.drivers[0] + i] = np.sqrt(2.*lattice.gamma*temp1)*np.random.randn(nt, nd, 1)
         force[:,dim*lattice.drivers[1] + i] = np.sqrt(2.*lattice.gamma*temp2)*np.random.randn(nt, nd, 1)
         
-    y = np.zeros((2*n, nt))
+    y = np.zeros((2*n*dim, nt))
         
     for t_i in np.arange(1, nt):
         
         t = times[:t_i]
     
-        gf = lattice.val[:,None]*((t[-1] - t)[:,None,None]*np.ones((t_i, 2*n, n)))
+        gf = lattice.val[:,None]*((t[-1] - t)[:,None,None]*np.ones((t_i, 2*n*dim, n*dim)))
         gf = lattice.coeffs[None,:]*np.exp(gf)
-        q = np.matmul(lattice.vec[:n,:], gf)
-        qdot = np.matmul(lattice.vec[n:,:], gf)                                                                                                           
-        
-        if t_i == 2:
-            print(q.real)
-            print(qdot.real)
+        q = np.matmul(lattice.vec[:n*dim,:], gf)
+        qdot = np.matmul(lattice.vec[n*dim:,:], gf)                                                                                                           
         
         f = force[:t_i,:,:]
         
@@ -154,8 +150,8 @@ def perform_md_gf2(lattice, t_span, nt, temp1, temp2):
         qdot = np.matmul(qdot, f)[:,:,0].T.real
         
 
-        y[:n,t_i] = np.sum(q, axis=1)*dt
-        y[n:,t_i] = np.sum(qdot, axis=1)*dt
+        y[:n*dim,t_i] = np.sum(q, axis=1)*dt
+        y[n*dim:,t_i] = np.sum(qdot, axis=1)*dt
     
     return MDBatch(times, y)
 
@@ -195,4 +191,23 @@ def perform_md_gf3(lattice, t_span, nt, temp1, temp2):
     q = np.einsum('ijkl, lj -> ki', q, force, optimize='greedy')
     
     return MDBatch(times, q*dt)
+
+def sol2current(lat, sol):
+    """
+    Return the instantanenous heat current through the system as a function
+    of time
+    """
+    
+    n = sol.y.shape[0]//2
+    dim = lat.dim
+    
+    curr = np.zeros(sol.t.shape[0])
+    
+    for i,j in lat.crossings:
+        
+        for coord in np.arange(dim):
+            
+            curr += lat.k[dim*i + coord, dim*j + coord]*sol.y[dim*i + coord]*sol.y[n + dim*j + coord]
+            
+    return curr
         
