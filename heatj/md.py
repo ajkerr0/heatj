@@ -73,10 +73,26 @@ def perform_md(lattice, t_span, nt, temp1, temp2, solver_options={}):
     
     return solve_ivp(func, t_span, y0, jac=None, t_eval=times, **solver_options)
 
-def perform_md_gf(lattice, t_span, nt, temp1, temp2):
+def perform_md_gf(lattice, t_span, nt, temp1, temp2, nprop=10):
     """
     Return the Green's function solution to the positions/velocities
     of lattice objects.
+    
+    Parameters
+    ----------
+    lattice : The heatj.Lattice object to be modeled
+    t_span : The 2-tuple of time ranges to be simulated
+    nt : The number of time evaluations
+    temp1 : First reservoir temperature
+    temp2 : Second reservoir temperature
+    
+    Keywords
+    --------
+    nprop : Number of time steps to propagate per application of the Green's function.
+            Increasing this parameter means more of the calculation is vectorized 
+            but scales memory and time quadratically.  For large lattices this number 
+            must be low.  Defaults to 10.
+    
     """
     
     n = lattice.mass.shape[0]
@@ -98,25 +114,53 @@ def perform_md_gf(lattice, t_span, nt, temp1, temp2):
     ti, tf = t_span
     dt = (tf-ti)/nt
     
-    gf = lattice.val[:,None]*dt*np.ones((2*dim*n, dim*n))
-    gf = lattice.coeffs*np.exp(gf)
-    q = np.matmul(lattice.vec[:n*dim,:], gf).real
-    qdot = np.matmul(lattice.vec[n*dim:,:], gf).real
+    nstride = nt//nprop
+    breaks = [[i,i+nprop] for i in nprop*np.arange(nstride)]
     
-    q = np.matmul(q, force)
-    qdot = np.matmul(qdot, force)
-
-    y[:dim*n,:] = q*dt
-    y[dim*n:,:] = qdot*dt
-#    y[:dim*n,1:] = cumtrapz(q, times, axis=1)
-#    y[dim*n:,1:] = cumtrapz(qdot, times, axis=1)
+    # set the boundary condition
+    q_iv = np.zeros(2*dim*n)
     
+    for start, stop in breaks:
+        
+        sub_times = times[start:stop]
+        
+        # determine the homogeneous solution
+        homo_coeffs = np.linalg.solve(lattice.vec, q_iv)
+        
+        del_ts = sub_times - times[start]
+        
+        generator = np.exp(lattice.val[:,None]*del_ts[None,:])
+        
+        q_homo = np.matmul(homo_coeffs[None,:]*lattice.vec, generator).real
+        
+        t, tprime = np.meshgrid(sub_times, sub_times)
+        del_ts = np.tril(tprime-t) + np.triu(np.full(t.shape, np.inf), k=0)
+        
+        gf = np.einsum('ij, k, l -> ijkl', del_ts, lattice.val, np.ones(dim*n), optimize='greedy')
+        gf = lattice.coeffs[None,None,:,:]*np.exp(gf)
+        
+        q_inhomo= np.matmul(lattice.vec, gf).real
+        
+        q_inhomo = np.einsum('ijkl, lj -> ki', q_inhomo, force[:,start:stop], optimize='greedy')
+        
+        q = q_homo + q_inhomo*dt
+        y[:,start:stop] = q
+        q_iv = q[:,-1]
+        
     return MDBatch(times, y)
 
 def perform_md_gf2(lattice, t_span, nt, temp1, temp2):
     """
     Return the Green's function solution to the positions/velocities
     of lattice objects.
+    
+    Parameters
+    ----------
+    lattice : The heatj.Lattice object to be modeled
+    t_span : The 2-tuple of time ranges to be simulated
+    nt : The number of time evaluations
+    temp1 : First reservoir temperature
+    temp2 : Second reservoir temperature
     """
         
     n = lattice.mass.shape[0]
@@ -177,8 +221,6 @@ def perform_md_gf3(lattice, t_span, nt, temp1, temp2):
     for i in np.arange(dim):
         force[dim*lattice.drivers[0] + i, :] = force_cold[:,:,i]
         force[dim*lattice.drivers[1] + i, :] = force_hot[:,:,i]
-        
-    y = np.zeros((2*n, nt))
     
     t, tprime = np.meshgrid(times, times)
     del_ts = np.tril(tprime-t) + np.triu(np.full((nt, nt), np.inf), k=1)
