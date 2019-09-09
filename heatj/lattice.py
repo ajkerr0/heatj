@@ -58,10 +58,10 @@ class Lattice(object):
               | K   YM^-1 |"""
         
         a = np.zeros((2*self.n*self.dim, 2*self.n*self.dim))
-        a[:self.n*self.dim, self.n*self.dim:] = -self._m_matrix
-        a[self.n*self.dim:, :self.n*self.dim] = self.k
+        a[:self.n*self.dim, self.n*self.dim:] = np.eye(self.n*self.dim)
+        a[self.n*self.dim:, :self.n*self.dim] = np.matmul(-self._m_matrix, self.k)
         a[self.n*self.dim:, self.n*self.dim:] = np.dot(self._g_matrix, 
-                                                       self._m_matrix)
+                                                       -self._m_matrix)
         
         return np.linalg.eig(a)
     
@@ -292,12 +292,13 @@ class Lattice(object):
         
         for idim in np.arange(self.dim):
             for jdim in np.arange(self.dim):
-                kappa += self.k[self.dim*i + idim, self.dim*j + jdim]* \
+                kappa += self.k[self.dim*j + jdim, self.dim*i + idim]* \
                          np.einsum('ik,i,jk,j,ij->', self.coeffs[:,driver1],
                                                      self.vec[self.dim*i + idim,:],
                                                      self.coeffs[:,driver1],
                                                      self.vec[self.dim*j + jdim,:],
-                                                     valterm)
+                                                     valterm,
+                                                     optimize='greedy')
         
         return kappa
     
@@ -360,6 +361,41 @@ class Lattice(object):
             kappa += self.k[self.dim*i + idim, self.dim*j + idim]* \
                      np.einsum('ik,i,jk,j,ij->', self.coeffs[:,driver1],
                                                  self.vec[self.dim*i + idim,:],
+                                                 self.coeffs[:,driver1],
+                                                 self.vec[self.dim*j + idim,:],
+                                                 valterm)
+        
+        return kappa
+    
+    def calculate_power_einsum4(self, i,j):
+        
+        # sum over:
+        # dimensions of i
+        # dimensions of j
+        # number of drivers
+        # sigma
+        # tau
+        
+        # pick a driven side, we will assume the same uniform damping on both
+        driver1 = self.drivers[1]
+        
+        # include dimensions of the drivers
+        driver1 = np.repeat(self.dim*driver1, self.dim) + np.tile(np.arange(self.dim), driver1.shape[0])
+
+        kappa = 0.
+        
+        val_sigma = np.tile(self.val, (self.val.shape[0],1))
+        val_tau = np.transpose(val_sigma)
+        
+        with np.errstate(divide="ignore", invalid="ignore"):
+            valterm = np.true_divide(val_sigma-val_tau,val_sigma+val_tau)
+        valterm[~np.isfinite(valterm)] = 0.
+        
+        kvec = np.matmul(self.k, self.vec[:self.dim*self.mass.shape[0],:])
+        
+        for idim in np.arange(self.dim):
+            kappa += np.einsum('ik,i,jk,j,ij->', self.coeffs[:,driver1],
+                                                 kvec[self.dim*i + idim,:],
                                                  self.coeffs[:,driver1],
                                                  self.vec[self.dim*j + idim,:],
                                                  valterm)
@@ -563,6 +599,8 @@ class Lattice(object):
             return 2.*self.gamma*kappa
         elif choice == 5:
             power = self.calculate_power_einsum3
+        elif choice == 6:
+            power = self.calculate_power_einsum4
         else:
             return 2.*self.gamma*self.calculate_power_uncollapsed(self.crossings)
         
@@ -572,3 +610,50 @@ class Lattice(object):
             kappa += power(i,j)
             
         return 2.*self.gamma*np.abs(kappa.real)
+    
+    def j_alt(self):
+        """Return the heat current as defined by Velizhinan et al. which is a
+        seemingly different function than Mullen's GF method."""
+        
+        import scipy.linalg
+        
+        a = np.zeros((2*self.n*self.dim, 2*self.n*self.dim))
+        a[:self.n*self.dim, self.n*self.dim:] = -self._m_matrix
+        a[self.n*self.dim:, :self.n*self.dim] = self.k
+        a[self.n*self.dim:, self.n*self.dim:] = np.dot(self._g_matrix, 
+                                                       self._m_matrix)
+        
+        w, vl, vr = scipy.linalg.eig(a, left=True)
+        
+        norm = np.diag(np.dot(np.conj(vl.T), vr))[None,:]
+        vr = vr/norm
+        
+        val_k = np.tile(w, (w.shape[0],1))
+        val_l = np.conjugate(np.transpose(val_k))
+        
+        with np.errstate(divide="ignore", invalid="ignore"):
+            valterm = np.true_divide(1.,val_k+val_l)
+        valterm[~np.isfinite(valterm)] = 0.
+        
+        drivers = self.drivers[1]
+        drivers = np.repeat(self.dim*drivers, self.dim) + np.tile(np.arange(self.dim), drivers.shape[0])
+        
+        def corr(a,b):
+            """Return <x_a p_b>"""
+            return np.einsum('l,k,mk,ml,lk->',
+                             np.conj(vr[self.dim*self.n+b,:]),
+                             vr[a,:],
+                             np.conj(vl[self.dim*self.n+drivers,:]),
+                             vl[self.dim*self.n+drivers,:],
+                             valterm, 
+                             optimize='greedy')
+        
+        sigma = 0.
+        for i,j in self.crossings:
+            for idim in np.arange(self.dim):
+                for jdim in np.arange(self.dim):
+                    sigma += self.k[self.dim*j + jdim, self.dim*i + idim]/self.mass[j]* \
+                    corr(self.dim*i + idim, self.dim*j + jdim)
+                    sigma -= self.k[self.dim*i + idim, self.dim*j + jdim]/self.mass[i]* \
+                    corr(self.dim*j + jdim, self.dim*i + idim)
+        return 2.*self.gamma*np.abs(sigma)
