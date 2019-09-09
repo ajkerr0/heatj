@@ -21,9 +21,9 @@ class LinearLattice(Lattice):
 class Simple1D(Lattice):
     """A 1D harmonic lattice with extend reservoirs at the ends."""
     
-    def __init__(self, n, nr=1, k=1., d=1., m=1., gamma=1.):
+    def __init__(self, n, nr=1, k=1., d=1., m=1., gamma=1., ends=True):
         super().__init__(m*np.ones(n),
-                         get_hessian(get_1dneighbors(n), n, k, d),
+                         get_hessian(get_1dneighbors(n), n, k, d, ends=ends),
                          gamma,
                          [np.arange(0, nr), np.arange(n-nr, n)],
                          [[nr,nr+1]])
