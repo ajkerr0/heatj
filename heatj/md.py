@@ -9,7 +9,7 @@ class MDBatch(object):
         self.t = t
         self.y = y
 
-def perform_md(lattice, t_span, nt, temp1, temp2, solver_options={}):
+def perform_md(lattice, t_span, nt, temp1, temp2, seed=None, solver_options={}):
     """
     Return the scipy IVP solver batch object for the lattice dynamics
     
@@ -40,6 +40,9 @@ def perform_md(lattice, t_span, nt, temp1, temp2, solver_options={}):
     jac[:n*dim, n*dim:] = np.diag(np.ones(n*dim))
     jac[n*dim:, :n*dim] = -np.matmul(inv_mass_mat, lattice.k)
     jac[n*dim:, n*dim:] = -np.matmul(inv_mass_mat, gamma_mat)
+    
+    if seed is not None:
+        np.random.seed(seed)
     
     times = np.linspace(*t_span, num=nt)
     force_hot  = np.sqrt(2.*lattice.gamma*temp2)*np.random.randn(nt, nd, dim)
@@ -73,7 +76,7 @@ def perform_md(lattice, t_span, nt, temp1, temp2, solver_options={}):
     
     return solve_ivp(func, t_span, y0, jac=None, t_eval=times, **solver_options)
 
-def perform_md_gf(lattice, t_span, nt, temp1, temp2, nprop=10):
+def perform_md_gf(lattice, t_span, nt, temp1, temp2, nprop=10, seed=None):
     """
     Return the Green's function solution to the positions/velocities
     of lattice objects.
@@ -98,6 +101,9 @@ def perform_md_gf(lattice, t_span, nt, temp1, temp2, nprop=10):
     n = lattice.mass.shape[0]
     nd = lattice.drivers.shape[1]  # number of drivers on each side
     dim = lattice.dim
+    
+    if seed is not None:
+        np.random.seed(seed)
     
     times = np.linspace(*t_span, num=nt)
     
